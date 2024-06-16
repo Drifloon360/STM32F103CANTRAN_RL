@@ -1,6 +1,6 @@
 ################################################################################
 # Automatically-generated file. Do not edit!
-# Toolchain: GNU Tools for STM32 (10.3-2021.10)
+# Toolchain: GNU Tools for STM32 (12.3.rel1)
 ################################################################################
 
 -include ../makefile.init
@@ -52,6 +52,9 @@ default.size.stdout \
 OBJDUMP_LIST += \
 CAN_Loopback_Example.list \
 
+OBJCOPY_BIN += \
+CAN_Loopback_Example.bin \
+
 
 # All Target
 all: main-build
@@ -75,12 +78,17 @@ CAN_Loopback_Example.list: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_
 	@echo 'Finished building: $@'
 	@echo ' '
 
+CAN_Loopback_Example.bin: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-objcopy  -O binary $(EXECUTABLES) "CAN_Loopback_Example.bin"
+	@echo 'Finished building: $@'
+	@echo ' '
+
 # Other Targets
 clean:
-	-$(RM) CAN_Loopback_Example.elf CAN_Loopback_Example.list CAN_Loopback_Example.map default.size.stdout
+	-$(RM) CAN_Loopback_Example.bin CAN_Loopback_Example.elf CAN_Loopback_Example.list CAN_Loopback_Example.map default.size.stdout
 	-@echo ' '
 
-secondary-outputs: $(SIZE_OUTPUT) $(OBJDUMP_LIST)
+secondary-outputs: $(SIZE_OUTPUT) $(OBJDUMP_LIST) $(OBJCOPY_BIN)
 
 fail-specified-linker-script-missing:
 	@echo 'Error: Cannot find the specified linker script. Check the linker settings in the build configuration.'

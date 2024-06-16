@@ -51,20 +51,22 @@ TIM_HandleTypeDef htim2;
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
-const float slope1 = 0.0476;
+//const float slope1 = 0.0476;
+const float slope1 = 0.2343;
 const float slope2 = 0.0472;
-const float slope3 = 1;
-const float slope4 = 1;
+const float slope3 = 0.0470;
+const float slope4 = 0.0467;
 const float slope5 = 1;
 const float slope6 = 1;
 const float slope7 = 1;
 const float slope8 = 1;
 
 
-const float offset1 = -126.46;
+//const float offset1 = -126.46;
+const float offset1 = -636.22;
 const float offset2 = -127.09;
-const float offset3 = 0;
-const float offset4 = 0;
+const float offset3 = -124.65;
+const float offset4 = -131.54;
 const float offset5 = 0;
 const float offset6 = 0;
 const float offset7 = 0;
@@ -116,9 +118,13 @@ uint8_t usartBuff[64]= {'\0'};
 uint8_t usartRxBuff[64]= {'\0'};
 //Processing Buffers
 uint16_t dataBuff1[4];
+int16_t *signedBuff1 = dataBuff1;
 uint16_t dataBuff2[4];
 uint8_t dataPrep[8];
 uint8_t emptyFrame[8];
+
+// Safety timeout
+uint16_t timCount = 0;
 
 
 /* USER CODE END 0 */
@@ -129,6 +135,7 @@ uint8_t emptyFrame[8];
   */
 int main(void)
 {
+
   /* USER CODE BEGIN 1 */
 
   /* USER CODE END 1 */
@@ -203,10 +210,11 @@ int main(void)
 	//send the message (Should be received in the RxFifo0)
 	if(usartDataInFlag){
 		for(uint8_t i = 0; i<8; i++){
-			if(usartRxBuff[i]>='1' && usartRxBuff[i] <= '9') {
-				TxData[i] = (uint8_t) (usartRxBuff[i]-'0');
-			}
-			else {TxData[i] = 0;}
+//			if(usartRxBuff[i]>='1' && usartRxBuff[i] <= '9') {
+//				TxData[i] = (uint8_t) (usartRxBuff[i]-'0');
+//			}
+//			else {TxData[i] = 0;}
+			TxData[i] = usartRxBuff[i]; // NF 11/16
 		}
 
 
@@ -217,10 +225,22 @@ int main(void)
 		HAL_UART_Receive_IT(&huart1, usartRxBuff, 9);
 	}
 	if(CanMsgInFlag){
-		sprintf((char *)&usartBuff, "Toggle PIN%d %d\n", (int)dataPrep[0], (int)dataPrep[1]);
+		//sprintf((char *)&usartBuff, "Toggle PIN%d %d\n", (int)dataPrep[0], (int)dataPrep[1]);
+		sprintf((char * ) &usartBuff, "PS%i%i%i%i%i%i%i%i%i\n",
+			  (int) (dataPrep[0] & (0x1 << 0)),
+			  (int) (dataPrep[0] & (0x1 << 1)),
+			  (int) (dataPrep[1]),
+			  (int) (dataPrep[2]),
+			  (int) (dataPrep[3]),
+			  (int) (dataPrep[4]),
+			  (int) (dataPrep[5]),
+			  (int) (dataPrep[6]),
+			  (int) (dataPrep[7])
+		);
 		HAL_UART_Transmit(&huart1, (unsigned char *)usartBuff, strlen((char *)usartBuff), HAL_MAX_DELAY);
 		memset((char *)usartBuff, '\0', strlen((char *)usartBuff));
 		CanMsgInFlag = RESET;
+		timCount = 0;
 	}
 	/*sprintf((char *)&usartBuff, "%d %d %d %d %d\n", CanMsgInFlag, CanDataFlag1, CanDataFlag2, CanDataRqFlag, usartDataInFlag);
 	HAL_UART_Transmit(&huart1, (unsigned char *)usartBuff, strlen((char *)usartBuff), HAL_MAX_DELAY);
@@ -228,7 +248,8 @@ int main(void)
 	memset((char *)usartBuff, '\0', strlen((char *)usartBuff));
 	*/
 	if(CanDataFlag1 && CanDataFlag2){
-			sprintf((char *)&usartBuff, "%4d, %4d, %4d, %4d, %4d, %4d, %4d, %4d\n", (int)(slope1 * (float)dataBuff1[0] + offset1),(int)(slope2 * (float)dataBuff1[1]+offset2),(int)(slope3 * (float)dataBuff1[2]+offset3),(int)(slope4* (float)dataBuff1[3] + offset4), (int)(slope5 * dataBuff2[0]+ offset5),(int)(slope6 *dataBuff2[1] + offset6),(int)(slope7 * dataBuff2[2] +offset7),(int)(slope8 * dataBuff2[3]+offset8));
+
+			sprintf((char *)&usartBuff, "%4i, %4i, %4i, %4i, %4i, %4i, %4i, %4i\n", (int)(slope1 * (float)signedBuff1[0] + offset1),(int)(slope2 * (float)signedBuff1[1]+offset2),(int)(slope3 * (float)signedBuff1[2]+offset3),(int)(slope4* (float)signedBuff1[3] + offset4), (int)(slope5 * dataBuff2[0]+ offset5),(int)(slope6 *dataBuff2[1] + offset6),(int)(slope7 * dataBuff2[2] +offset7),(int)(slope8 * dataBuff2[3]+offset8));
 			HAL_UART_Transmit(&huart1, (unsigned char *)usartBuff, strlen((char *)usartBuff), HAL_MAX_DELAY);
 			memset((char *)usartBuff, '\0', strlen((char *)usartBuff));
 			CanDataFlag1 = RESET;
@@ -243,6 +264,11 @@ int main(void)
 		CanDataRqFlag = RESET;
 
 
+	}
+
+	if (timCount > 60000) {
+
+		NVIC_SystemReset();
 	}
 
 
@@ -457,6 +483,12 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+void HAL_SYSTICK_Callback(void) {
+
+	timCount++;
+}
+
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
 	HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &RxHeader, RxData);
 	if(RxHeader.StdId == 0x132) {
